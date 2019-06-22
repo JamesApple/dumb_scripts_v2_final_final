@@ -19,7 +19,7 @@ if ! docker info > /dev/null 2>&1 ; then
   exit 1
 fi
 
-if [ -z $sql_dump_file ] || [ ! -f $sql_dump_file ]; then
+if [ -z "$sql_dump_file" ] || [ ! -f "$sql_dump_file" ]; then
   >&2 echo 'Please provide me the path to a tasty .sql file as my first parameter'
   exit 1
 fi
@@ -29,12 +29,12 @@ if docker container ls | grep $container_name > /dev/null; then
   docker kill $container_name > /dev/null
 fi
 
-rm -rf $volume_path ; mkdir -p $volume_path
+rm -rf "$volume_path" ; mkdir -p "$volume_path"
 
 if ! nc -z localhost 5432; then
   docker run --rm --name $container_name \
     -d -p 5432:5432 \
-    -v $volume_path:/var/lib/postgresql/data \
+    -v "$volume_path":/var/lib/postgresql/data \
     $image_name > /dev/null
 else
   echo '
@@ -50,9 +50,12 @@ done
 
 set -e
 
-cat $sql_dump_file | docker exec -i $container_name psql -U postgres
+docker exec -i $container_name psql -U postgres < "$sql_dump_file"
 
 echo "
+  Connect with Docker:
+    docker exec -i $container_name psql -U postgres
+
   If you have psql installed you can now connect to the database in your CLI with:
     psql postgresql://localhost:5432 -U postgres 
 
