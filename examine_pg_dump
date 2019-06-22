@@ -1,0 +1,69 @@
+#!/bin/sh
+#
+# Load a .sql backup from a postgres database into a docker container to allow
+# inspection of the data without installing the server locally.
+# Only used on Mac
+
+container_name='platform-database'
+image_name='postgres:9.6'
+volume_path=$HOME/docker/volumes/postgres 
+sql_dump_file=$1
+
+if ! docker info > /dev/null 2>&1 ; then
+  >&2 echo '
+  You need the docker daemon running please if you could start it that would be great okay.
+
+  if you dont have it installed why not try this bad boy:
+    https://docs.docker.com/docker-for-mac/install/
+  '
+  exit 1
+fi
+
+if [ -z $sql_dump_file ] || [ ! -f $sql_dump_file ]; then
+  >&2 echo 'Please provide me the path to a tasty .sql file as my first parameter'
+  exit 1
+fi
+
+if docker container ls | grep $container_name > /dev/null; then
+  echo 'Killing running container now OwO'
+  docker kill $container_name > /dev/null
+fi
+
+rm -rf $volume_path ; mkdir -p $volume_path
+
+if ! nc -z localhost 5432; then
+  docker run --rm --name $container_name \
+    -d -p 5432:5432 \
+    -v $volume_path:/var/lib/postgresql/data \
+    $image_name > /dev/null
+else
+  echo '
+  Someone is already running on port 5432! 
+  Going to try connecting as normal but maybe kill it if it misbehaves!
+  '
+fi
+
+until docker exec -i $container_name psql -U postgres -c "SELECT 1" > /dev/null 2>&1 ; do
+  echo 'Poking the postgres container...'
+  sleep 2
+done
+
+set -e
+
+cat $sql_dump_file | docker exec -i $container_name psql -U postgres
+
+echo "
+  If you have psql installed you can now connect to the database in your CLI with:
+    psql postgresql://localhost:5432 -U postgres 
+
+  Or use a lovely GUI such as:
+    https://teamsql.io/
+
+  HOSTNAME: localhost
+  PORT:     5432
+  USER:     postgres
+  DATABASE: postgres
+
+  If you want to stop the container and remove its volume run the following:
+    docker kill $container_name ; rm -rf $volume_path
+"
