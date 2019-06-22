@@ -45,28 +45,69 @@ fi
 
 until docker exec -i $container_name psql -U postgres -c "SELECT 1" > /dev/null 2>&1 ; do
   echo 'Poking the postgres container...'
-  sleep 2
+  sleep 10
 done
 
 set -e
 
 docker exec -i $container_name psql -U postgres < "$sql_dump_file"
 
-echo "
-  Connect with Docker:
-    docker exec -i $container_name psql -U postgres
 
-  If you have psql installed you can now connect to the database in your CLI with:
-    psql postgresql://localhost:5432 -U postgres 
+# Shameless stack overflow rip
+inquire ()  {
+  echo  -n "$1 [y/n]? "
+  read answer
+  finish="-1"
+  while [ "$finish" = '-1' ]
+  do
+    finish="1"
+    if [ "$answer" = '' ];
+    then
+      answer=""
+    else
+      case $answer in
+        y | Y | yes | YES ) answer="y";;
+        n | N | no | NO ) answer="n";;
+        *) finish="-1";
+           echo -n 'Invalid response -- please reenter:';
+           read answer;;
+       esac
+    fi
+  done
+}
 
-  Or use a lovely GUI such as:
-    https://teamsql.io/
+if inquire 'Connect now and cleanup after?' ; then
+  echo '
+    Commands:
+      \d                                | List tables
+      \d TABLENAME                      | Detail a table
+      \x                                | Enable pretty formatting <3
+      \q                                | Exit, the volume and container will be stopped afterwards.
+      SELECT * FROM table_name LIMIT 1; | Run a query, make sure you terminate with a ";"
+  '
+  docker exec -it $container_name psql -U postgres
+  docker kill $container_name > /dev/null
+  rm -rf $volume_path
+  docker image rm $image_name
+else
+  echo "
+    Connect with Docker:
+      docker exec -i $container_name psql -U postgres
 
-  HOSTNAME: localhost
-  PORT:     5432
-  USER:     postgres
-  DATABASE: postgres
+    If you have psql installed you can now connect to the database in your CLI with:
+      psql postgresql://localhost:5432 -U postgres 
 
-  If you want to stop the container and remove its volume run the following:
-    docker kill $container_name ; rm -rf $volume_path
-"
+    Or use a lovely GUI such as:
+      https://teamsql.io/
+
+    HOSTNAME: localhost
+    PORT:     5432
+    USER:     postgres
+    DATABASE: postgres
+
+    If you want to stop the container and remove its volume run the following:
+      docker kill $container_name ; rm -rf $volume_path
+  "
+fi
+
+
